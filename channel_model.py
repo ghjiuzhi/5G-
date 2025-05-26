@@ -32,23 +32,37 @@ class ChannelModel:
         d1 = d/2  # 假设发射机和接收机之间的距离平分
         return np.sqrt((n * self.wavelength * d1 * (d-d1)) / d)
     
-    def obstacle_loss(self, h_c, F1):
+    def obstacle_loss(self, d, h_c):
         """
-        计算障碍物造成的附加路径损耗
+        计算障碍物造成的附加路径损耗 (修正版)
         
         参数:
-            h_c: 障碍物高度(m)
-            F1: 第一菲涅尔区半径(m)
-            
+            d: 发射机与接收机之间的距离(m)
+            h_c: 障碍物超出视线的高度(m) (负值表示在视线下方)
         返回:
             附加路径损耗(dB)
         """
-        v = h_c / F1  # 相对余隙
+        # 假设障碍物在路径正中间，d1 = d2 = d/2
+        # 如果需要更通用的模型，需要传入d1和d2
+        d1 = d / 2
+        d2 = d / 2
+
+        # 计算标准菲涅尔衍射参数 v
+        # v = h_c * sqrt(2 * (d1 + d2) / (lambda * d1 * d2))
+        # 当 d1 = d2 = d/2 时， v = h_c * sqrt(2 * d / (lambda * d^2 / 4)) = h_c * sqrt(8 / (lambda * d))
+        # 这里的实现直接使用了更通用的公式形式，即使 d1=d2=d/2
+        v = h_c * np.sqrt(2 * (d1 + d2) / (self.wavelength * d1 * d2))
+
         # 基于ITU-R P.526-15模型计算衍射损耗
+        # J(v) = 6.9 + 20 * log10(sqrt((v - 0.1)^2 + 1) + v - 0.1) for v > -0.7
+        # J(v) = 0 for v <= -0.7 (近似)
         if v > -0.7:
-            J = 6.9 + 20 * np.log10(np.sqrt((v-0.1)**2 + 1) + v - 0.1)
+            # 增加一个小的 epsilon 防止 log10(0) 当 v = 0.1 时
+            epsilon = 1e-9
+            term = np.sqrt((v - 0.1)**2 + 1) + v - 0.1
+            J = 6.9 + 20 * np.log10(term + epsilon)
         else:
-            J = 0  # 当障碍物不显著时，衍射损耗可忽略
+            J = 0  # 当障碍物不显著或在视线下方时，衍射损耗可忽略
         return J
 
     def path_loss(self, distance):

@@ -12,28 +12,43 @@ plt.rcParams['axes.unicode_minus'] = False    # 用来正常显示负号
 def plot_path_loss():
     """分析不同障碍物高度下的路径损耗"""
     channel = ChannelModel(freq_ghz=28)
-    distances = np.linspace(10, 1000, 100)
-    
+    distances = np.linspace(10, 1000, 100) # 距离范围 10m 到 1000m
+
     plt.figure(figsize=(10, 6))
-    
-    # 计算不同障碍物相对余隙的路径损耗
+
+    # 绘制自由空间路径损耗作为参考
+    free_space_loss = [channel.path_loss(d) for d in distances]
+    plt.plot(distances, free_space_loss, 'k--', label='自由空间路径损耗')
+
+    # 分析不同 h_c/F1 比例下的总路径损耗
+    # 注意：这里的 h_c/F1 比例仅用于设定障碍物高度 h_c，
+    # obstacle_loss 函数内部会根据 d 和 h_c 计算标准的衍射参数 v
     for h_c_ratio in [0, 0.3, 0.6, 1.0]:
         total_loss = []
         for d in distances:
+            # 计算当前距离下的第一菲涅尔区半径 (假设障碍物在中间)
             F1 = channel.fresnel_zone_radius(d)
-            h_c = h_c_ratio * F1  # 障碍物高度与F1的比例
-            obstacle_loss = channel.obstacle_loss(h_c, F1)
+            # 根据比例计算障碍物超出视线的高度
+            h_c = h_c_ratio * F1
+            # 计算障碍物造成的附加损耗，传递距离 d 和高度 h_c
+            additional_loss = channel.obstacle_loss(d, h_c)
+            # 计算总路径损耗 (自由空间损耗 + 附加损耗)
             path_loss = channel.path_loss(d)
-            total_loss.append(path_loss + obstacle_loss)
-        plt.plot(distances, total_loss, label=f'h_c/F1 = {h_c_ratio}')
-    
+            total_loss.append(path_loss + additional_loss)
+        # 绘制结果，标签仍然使用 h_c/F1 比例，因为它代表了场景设置
+        plt.plot(distances, total_loss, label=f'h_c/F1 ≈ {h_c_ratio}')
+
+    plt.grid(True)
     plt.xlabel('距离 (m)')
     plt.ylabel('路径损耗 (dB)')
     plt.title('不同障碍物相对余隙下的路径损耗')
     plt.legend()
-    plt.grid(True)
-    plt.savefig('path_loss.png', dpi=300)
-    plt.show()
+    # 保存图表到 results 目录
+    results_dir = os.path.join(os.getcwd(), 'results')
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+    plt.savefig(os.path.join(results_dir, 'path_loss.png'), dpi=300, bbox_inches='tight')
+    plt.close()
 
 def analyze_frequency_selective_fading():
     """分析频率选择性衰落"""
